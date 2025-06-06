@@ -1,67 +1,185 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
+import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { initializeDatabase } from '../lib/initDb';
+
+interface Category {
+  id: string;
+  name: string;
+}
 
 interface Product {
   id: string;
   name: string;
   price: number;
   quantity: number;
-  category: string;
+  categoryId: string;
+  categoryName: string;
 }
 
 export default function Inventory() {
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [newProduct, setNewProduct] = useState({
     name: '',
     price: 0,
     quantity: 0,
-    category: ''
+    categoryId: '',
+    categoryName: ''
   });
   const [isAddingProduct, setIsAddingProduct] = useState(false);
   const [isAddingNewCategory, setIsAddingNewCategory] = useState(false);
   const [newCategory, setNewCategory] = useState('');
 
   useEffect(() => {
+    loadCategories();
     loadProducts();
   }, []);
 
   useEffect(() => {
     const filtered = products.filter(product =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchTerm.toLowerCase())
+      product.categoryName.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredProducts(filtered);
   }, [searchTerm, products]);
 
-  useEffect(() => {
-    // Extract unique categories from products
-    const uniqueCategories = Array.from(new Set(products.map(product => product.category)));
-    setCategories(uniqueCategories);
-  }, [products]);
+  const loadCategories = async () => {
+    try {
+      const querySnapshot = await getDocs(collection(db, 'categories'));
+      const categoriesList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        name: doc.data().name
+      }));
+      setCategories(categoriesList);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+  };
 
   const loadProducts = async () => {
-    const querySnapshot = await getDocs(collection(db, 'products'));
-    const productsList = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as Product[];
-    setProducts(productsList);
-    setFilteredProducts(productsList);
+    try {
+      const querySnapshot = await getDocs(collection(db, 'products'));
+      const productsList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Product[];
+      setProducts(productsList);
+      setFilteredProducts(productsList);
+    } catch (error) {
+      console.error('Error loading products:', error);
+    }
+  };
+
+  const createCategory = async (name: string): Promise<Category> => {
+    try {
+      // Check if category already exists
+      const categoriesQuery = query(collection(db, 'categories'), where('name', '==', name));
+      const existingCategories = await getDocs(categoriesQuery);
+      
+      if (!existingCategories.empty) {
+        const existingCategory = existingCategories.docs[0];
+        return { id: existingCategory.id, name: existingCategory.data().name };
+      }
+
+      // Create new category
+      const categoryData = { name };
+      const docRef = await addDoc(collection(db, 'categories'), categoryData);
+      const newCategory = { id: docRef.id, name };
+      
+      // Update local state
+      setCategories(prev => [...prev, newCategory]);
+      
+      return newCategory;
+    } catch (error) {
+      console.error('Error creating category:', error);
+      throw error;
+    }
   };
 
   const addProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await addDoc(collection(db, 'products'), newProduct);
-      setNewProduct({ name: '', price: 0, quantity: 0, category: '' });
+      if (!newProduct.categoryId) {
+        alert('Please select or create a category');
+        return;
+      }
+
+      // Verify category exists
+      const categoryRef = doc(db, 'categories', newProduct.categoryId);
+      const categoryDoc = await getDoc(categoryRef);
+      
+      if (!categoryDoc.exists()) {
+        alert('Selected category does not exist. Please select a valid category.');
+        return;
+      }
+
+      const categoryData = categoryDoc.data();
+      const productData = {
+        name: newProduct.name,
+        price: newProduct.price,
+        quantity: newProduct.quantity,
+        categoryId: newProduct.categoryId,
+        categoryName: categoryData.name
+      };
+      
+      await addDoc(collection(db, 'products'), productData);
+      
+      // Reset form
+      setNewProduct({ name: '', price: 0, quantity: 0, categoryId: '', categoryName: '' });
       setIsAddingProduct(false);
-      loadProducts();
+      setIsAddingNewCategory(false);
+      setNewCategory('');
+      
+      // Reload data
+      await loadProducts();
     } catch (error) {
       console.error('Error adding product:', error);
+      alert('Error adding product. Please try again.');
+    }
+  };
+
+  const handleNewCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategory.trim()) return;
+
+    try {
+      const addedCategory = await createCategory(newCategory.trim());
+      
+      // Update product form with new category
+      setNewProduct(prev => ({
+        ...prev,
+        categoryId: addedCategory.id,
+        categoryName: addedCategory.name
+      }));
+      
+      // Reset category form
+      setIsAddingNewCategory(false);
+      setNewCategory('');
+      
+      // Reload categories
+      await loadCategories();
+    } catch (error) {
+      console.error('Error adding new category:', error);
+      alert('Error adding new category. Please try again.');
+    }
+  };
+
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (e.target.value === 'new') {
+      setIsAddingNewCategory(true);
+    } else {
+      setIsAddingNewCategory(false);
+      const selectedCategory = categories.find(cat => cat.id === e.target.value);
+      if (selectedCategory) {
+        setNewProduct({
+          ...newProduct,
+          categoryId: selectedCategory.id,
+          categoryName: selectedCategory.name
+        });
+      }
     }
   };
 
@@ -86,27 +204,30 @@ export default function Inventory() {
     }
   };
 
-  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (e.target.value === 'new') {
-      setIsAddingNewCategory(true);
-      setNewProduct({ ...newProduct, category: '' });
-    } else {
-      setIsAddingNewCategory(false);
-      setNewProduct({ ...newProduct, category: e.target.value });
-    }
-  };
-
-  const handleNewCategorySubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newCategory.trim()) {
-      setNewProduct({ ...newProduct, category: newCategory.trim() });
-      setIsAddingNewCategory(false);
-      setNewCategory('');
+  const handleInitializeDb = async () => {
+    try {
+      await initializeDatabase();
+      await loadCategories();
+      await loadProducts();
+      alert('Database initialized successfully!');
+    } catch (error) {
+      console.error('Error initializing database:', error);
+      alert('Error initializing database. Please check the console for details.');
     }
   };
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-900">Inventory Management</h2>
+        <button
+          onClick={handleInitializeDb}
+          className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+        >
+          Initialize Database
+        </button>
+      </div>
+
       {/* Search Bar */}
       <div className="flex items-center space-x-4">
         <div className="flex-1">
@@ -166,7 +287,7 @@ export default function Inventory() {
               <div>
                 <label className="block text-sm font-medium text-gray-700">Category</label>
                 {isAddingNewCategory ? (
-                  <form onSubmit={handleNewCategorySubmit} className="flex space-x-2">
+                  <div className="flex space-x-2">
                     <input
                       type="text"
                       value={newCategory}
@@ -176,7 +297,8 @@ export default function Inventory() {
                       required
                     />
                     <button
-                      type="submit"
+                      type="button"
+                      onClick={handleNewCategorySubmit}
                       className="mt-1 px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
                     >
                       Add
@@ -191,18 +313,18 @@ export default function Inventory() {
                     >
                       Cancel
                     </button>
-                  </form>
+                  </div>
                 ) : (
                   <select
-                    value={newProduct.category}
+                    value={newProduct.categoryId}
                     onChange={handleCategoryChange}
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500"
                     required
                   >
                     <option value="">Select a category</option>
                     {categories.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
+                      <option key={category.id} value={category.id}>
+                        {category.name}
                       </option>
                     ))}
                     <option value="new">+ Add New Category</option>
@@ -239,7 +361,7 @@ export default function Inventory() {
               {filteredProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{product.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.category}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.categoryName}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${product.price.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{product.quantity}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

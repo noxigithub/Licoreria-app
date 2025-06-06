@@ -8,7 +8,8 @@ interface Product {
   name: string;
   price: number;
   quantity: number;
-  category: string;
+  categoryId: string;
+  categoryName: string;
 }
 
 interface ReceiptItem {
@@ -16,6 +17,7 @@ interface ReceiptItem {
   name: string;
   price: number;
   quantity: number;
+  categoryName: string;
 }
 
 interface Receipt {
@@ -44,7 +46,7 @@ export default function Receipt() {
   useEffect(() => {
     const filtered = products.filter(product =>
       product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchTerm.toLowerCase())
+      product.categoryName.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredProducts(filtered);
   }, [searchTerm, products]);
@@ -78,7 +80,8 @@ export default function Receipt() {
         productId: product.id,
         name: product.name,
         price: product.price,
-        quantity: 1
+        quantity: 1,
+        categoryName: product.categoryName
       }]);
     }
   };
@@ -121,17 +124,19 @@ export default function Receipt() {
     // Items Table Header
     doc.setFontSize(10);
     doc.text('Item', 20, 80);
-    doc.text('Qty', 100, 80);
-    doc.text('Price', 130, 80);
-    doc.text('Total', 160, 80);
+    doc.text('Category', 70, 80);
+    doc.text('Qty', 120, 80);
+    doc.text('Price', 140, 80);
+    doc.text('Total', 170, 80);
     
     // Items
     let y = 90;
     receipt.items.forEach(item => {
       doc.text(item.name, 20, y);
-      doc.text(item.quantity.toString(), 100, y);
-      doc.text(`$${item.price.toFixed(2)}`, 130, y);
-      doc.text(`$${(item.price * item.quantity).toFixed(2)}`, 160, y);
+      doc.text(item.categoryName, 70, y);
+      doc.text(item.quantity.toString(), 120, y);
+      doc.text(`$${item.price.toFixed(2)}`, 140, y);
+      doc.text(`$${(item.price * item.quantity).toFixed(2)}`, 170, y);
       y += 10;
     });
     
@@ -204,7 +209,7 @@ export default function Receipt() {
               <div key={product.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                 <div>
                   <div className="font-medium">{product.name}</div>
-                  <div className="text-sm text-gray-500">{product.category}</div>
+                  <div className="text-sm text-gray-500">{product.categoryName}</div>
                 </div>
                 <div className="flex items-center space-x-4">
                   <span className="text-gray-700">${product.price.toFixed(2)}</span>
@@ -224,73 +229,66 @@ export default function Receipt() {
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h3 className="text-lg font-semibold mb-4">Receipt Preview</h3>
           
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Customer Name</label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500"
-                required
-              />
-            </div>
+          {/* Customer Info */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">Customer Name</label>
+            <input
+              type="text"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="Enter customer name"
+            />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Date</label>
-              <input
-                type="text"
-                value={date}
-                readOnly
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 bg-gray-50"
-              />
-            </div>
-
-            <div className="border-t pt-4">
-              <div className="space-y-2">
-                {selectedProducts.map(item => (
-                  <div key={item.productId} className="flex items-center justify-between p-2 border rounded-lg">
-                    <div>
-                      <div className="font-medium">{item.name}</div>
-                      <div className="text-sm text-gray-500">${item.price.toFixed(2)} each</div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                      <button
-                        onClick={() => updateQuantity(item.productId, item.quantity - 1)}
-                        className="text-gray-500 hover:text-gray-700"
-                      >
-                        -
-                      </button>
-                      <span className="w-8 text-center">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.productId, item.quantity + 1)}
-                        className="text-gray-500 hover:text-gray-700"
-                      >
-                        +
-                      </button>
-                      <span className="ml-4 font-medium">${(item.price * item.quantity).toFixed(2)}</span>
-                      <button
-                        onClick={() => removeFromReceipt(item.productId)}
-                        className="text-red-500 hover:text-red-700 ml-2"
-                      >
-                        ×
-                      </button>
-                    </div>
+          {/* Selected Items */}
+          <div className="border-t pt-4">
+            <div className="space-y-2">
+              {selectedProducts.map(item => (
+                <div key={item.productId} className="flex items-center justify-between p-2 border rounded-lg">
+                  <div>
+                    <div className="font-medium">{item.name}</div>
+                    <div className="text-sm text-gray-500">{item.categoryName}</div>
+                    <div className="text-sm text-gray-500">${item.price.toFixed(2)} each</div>
                   </div>
-                ))}
-              </div>
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      -
+                    </button>
+                    <span className="w-8 text-center">{item.quantity}</span>
+                    <button
+                      onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                      className="text-gray-500 hover:text-gray-700"
+                    >
+                      +
+                    </button>
+                    <span className="ml-4 font-medium">${(item.price * item.quantity).toFixed(2)}</span>
+                    <button
+                      onClick={() => removeFromReceipt(item.productId)}
+                      className="text-red-500 hover:text-red-700 ml-2"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
+          </div>
 
-            <div className="border-t pt-4">
-              <div className="flex justify-between text-lg font-bold">
-                <span>Total:</span>
-                <span>${calculateTotal().toFixed(2)}</span>
-              </div>
+          <div className="border-t pt-4">
+            <div className="flex justify-between text-lg font-bold">
+              <span>Total:</span>
+              <span>${calculateTotal().toFixed(2)}</span>
             </div>
+          </div>
 
+          <div className="mt-6">
             <button
               onClick={generateReceipt}
-              className="w-full mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+              className="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               Generate Receipt
             </button>

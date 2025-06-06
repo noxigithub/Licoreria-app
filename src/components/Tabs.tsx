@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import Inventory from './Inventory';
 import Receipt from './Receipt';
+import Categories from './Categories';
+import Reports from './Reports';
 
 export default function Tabs() {
   const [activeTab, setActiveTab] = useState('inventory');
@@ -22,15 +24,37 @@ export default function Tabs() {
             Inventory Management
           </button>
           <button
-            onClick={() => setActiveTab('receipts')}
+            onClick={() => setActiveTab('categories')}
             className={`
               whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
-              ${activeTab === 'receipts'
+              ${activeTab === 'categories'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+            `}
+          >
+            Categories
+          </button>
+          <button
+            onClick={() => setActiveTab('receipt')}
+            className={`
+              whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+              ${activeTab === 'receipt'
                 ? 'border-indigo-500 text-indigo-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
             `}
           >
             Receipt Generation
+          </button>
+          <button
+            onClick={() => setActiveTab('reports')}
+            className={`
+              whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm
+              ${activeTab === 'reports'
+                ? 'border-indigo-500 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+            `}
+          >
+            Reports
           </button>
         </nav>
       </div>
@@ -38,7 +62,9 @@ export default function Tabs() {
       {/* Tab Content */}
       <div className="mt-6">
         {activeTab === 'inventory' && <Inventory />}
-        {activeTab === 'receipts' && <Receipt />}
+        {activeTab === 'categories' && <Categories />}
+        {activeTab === 'receipt' && <Receipt />}
+        {activeTab === 'reports' && <Reports />}
       </div>
     </div>
   );
